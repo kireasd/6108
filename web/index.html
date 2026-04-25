@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>끝판왕 채널 수집기</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="theme-dark">
+    <div class="app-container">
+        <!-- 사이드바 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>끝판왕 채널 수집기</h1>
+                <span class="version-tag">PRO VERSION</span>
+            </div>
+
+            <!-- 보내주신 이미지의 탭 구성 재현 -->
+            <nav class="platform-tabs">
+                <button class="tab-btn active" data-platform="all">전체</button>
+                <button class="tab-icon-btn" data-platform="YouTube"><i class="fab fa-youtube" style="color: #ff0000;"></i></button>
+                <button class="tab-icon-btn" data-platform="Instagram"><i class="fab fa-instagram" style="color: #e1306c;"></i></button>
+                <button class="tab-icon-btn" data-platform="TikTok"><i class="fab fa-tiktok" style="color: #ffffff;"></i></button>
+            </nav>
+
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="검색...">
+            </div>
+
+            <div class="folder-section">
+                <ul id="folderList" class="folder-list">
+                    <!-- 폴더 리스트 이미지 재현 (# 폴더명 (0) + 연필/화살표/휴지통 아이콘) -->
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="footer-row">
+                    <div class="theme-selectors">
+                        <span class="theme-dot dot-blue active"></span>
+                        <span class="theme-dot dot-white"></span>
+                        <span class="theme-dot dot-dark"></span>
+                        <span class="theme-dot dot-pink"></span>
+                        <span class="theme-dot dot-lightgreen"></span>
+                    </div>
+                    <button id="addFolderBtn" class="btn-green"><i class="fas fa-plus"></i> 폴더 추가</button>
+                </div>
+                <button id="resetAllBtn" class="btn-red-full">전체 초기화</button>
+            </div>
+        </aside>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <header class="content-header">
+                <select id="sortSelect">
+                    <option value="latest">최신 등록순</option>
+                </select>
+                <div class="status-section">
+                    <span id="lastUpdated">최근 갱신: 없음</span>
+                    <button id="refreshBtn" class="btn-blue"><i class="fas fa-sync-alt"></i> 갱신</button>
+                </div>
+            </header>
+
+            <div id="channelGrid" class="channel-grid">
+                <!-- 채널 카드 리스트 (이미지 재현) -->
+            </div>
+
+            <footer class="content-footer">
+                <button id="addChannelBtn" class="btn-wide-blue">+ 채널 / 크리에이터 추가</button>
+            </footer>
+        </main>
+    </div>
+
+    <!-- 채널 추가 모달 (이미지 재현) -->
+    <div id="modalOverlay" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>채널 / 크리에이터 추가</h2>
+                <i class="fas fa-times close-modal" onclick="closeModal()"></i>
+            </div>
+            <div class="modal-body">
+                <label>플랫폼</label>
+                <div class="platform-select">
+                    <button class="plat-btn active" data-val="YouTube"><i class="fab fa-youtube"></i></button>
+                    <button class="plat-btn" data-val="Instagram"><i class="fab fa-instagram"></i></button>
+                    <button class="plat-btn" data-val="TikTok"><i class="fab fa-tiktok"></i></button>
+                </div>
+
+                <label>이미지 (선택 또는 Ctrl+V)</label>
+                <div class="image-upload-area">
+                    <div class="preview-circle"><img id="imgPreview" src=""></div>
+                    <input type="file" id="fileInput" style="display:none;" accept="image/*">
+                    <button class="btn-gray" onclick="document.getElementById('fileInput').click()">이미지 선택</button>
+                </div>
+
+                <label>이름</label>
+                <input type="text" id="inputName" placeholder="채널/크리에이터 이름">
+
+                <label>구독자 / 팔로워</label>
+                <input type="text" id="inputSubs" placeholder="예: 37만">
+
+                <label>URL 주소</label>
+                <input type="text" id="inputUrl" placeholder="https://...">
+
+                <label>메모</label>
+                <textarea id="inputMemo" rows="3"></textarea>
+
+                <label>폴더</label>
+                <select id="inputFolder">
+                    <option value="default">미분류</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-text" onclick="closeModal()">취소</button>
+                <button class="btn-blue-rect" id="submitBtn">등록하기</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/eel.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

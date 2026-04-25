@@ -1,0 +1,2 @@
+"const defaultData = { folders: [{ id: 'f_yt', name: '유튜브 기본', platform: 'YouTube', parentId: null, order: 0, isCollapsed: true }, { id: 'f_ig', name: '인스타 기본', platform: 'Instagram', parentId: null, order: 1, isCollapsed: true }, { id:
+<truncated 15386 bytes>

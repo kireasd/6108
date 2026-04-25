@@ -1,0 +1,2 @@
+"import eel\nimport os\nimport sys\nimport urllib.request\nimport re\nimport json\nimport tkinter as tk\nfrom tkinter import filedialog\nimport base64\n\ndef get_resource_path(relative_path):\n    if getattr(sys, 'frozen', False):\n        base_path = sys.
+<truncated 4695 bytes>
