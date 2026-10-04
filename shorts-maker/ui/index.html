@@ -61,6 +61,12 @@
         <div class="pick-row hidden" id="inputLink">
           <input class="link-input" id="findLink" placeholder="유튜브·틱톡·인스타 영상 주소를 붙여 넣으세요 (예: https://www.youtube.com/shorts/...)">
         </div>
+        <div class="options">
+          <label class="option"><input type="checkbox" id="optSpeech" checked>
+            <span><b>🎤 대사도 분석하기</b><small>대사가 없는 영상(음악·풍경 등)이면 끄면 더 빨라요</small></span></label>
+          <label class="option"><input type="checkbox" id="optDeep">
+            <span><b>🔬 상위 5개 정밀 비교까지 자동으로</b><small>끄면 결과를 먼저 보여 주고, 후보마다 '정밀 확인' 버튼으로 해요 (2~3분 절약)</small></span></label>
+        </div>
         <div class="start-row">
           <span class="hint" id="webHint"></span>
           <button class="btn primary" id="findStart" disabled>원본 찾기 시작 →</button>
@@ -255,7 +261,9 @@
 <footer class="statusbar">
   <div class="status-label">진행 안내</div>
   <div class="status-msg" id="statusMsg">준비됐어요.</div>
+  <div class="status-time" id="statusTime"></div>
   <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+  <button class="btn small hidden" id="cancelBtn">■ 그만하기</button>
 </footer>
 
 <div class="toast hidden" id="toast"></div>

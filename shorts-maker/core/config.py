@@ -26,6 +26,10 @@ def desktop_dir():
     return os.path.join(os.path.expanduser("~"), "Desktop")
 
 
+class Cancelled(Exception):
+    """사용자가 '그만하기'를 눌렀을 때."""
+
+
 DEFAULTS = {
     "output_dir": os.path.join(desktop_dir(), "쇼츠"),
     "provider": "local",

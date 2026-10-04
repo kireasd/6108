@@ -105,8 +105,26 @@ async function startJob(kind, params, startMsg) {
   return true;
 }
 
+let jobStart = 0;
+let jobTimer = null;
+
+function elapsedText() {
+  const sec = Math.floor((Date.now() - jobStart) / 1000);
+  return sec < 60 ? `${sec}초째` : `${Math.floor(sec / 60)}분 ${sec % 60}초째`;
+}
+
 function setBusy(busy) {
   running = busy;
+  $("#cancelBtn").classList.toggle("hidden", !busy);
+  $("#cancelBtn").disabled = false;
+  clearInterval(jobTimer);
+  if (busy) {
+    jobStart = Date.now();
+    $("#statusTime").textContent = "0초째";
+    jobTimer = setInterval(() => ($("#statusTime").textContent = elapsedText()), 1000);
+  } else if (jobStart) {
+    $("#statusTime").textContent = "걸린 시간 " + elapsedText().replace("째", "");
+  }
   document.querySelectorAll("[data-job]").forEach((b) => (b.disabled = busy || b.dataset.needs === "file" && !b.dataset.ready));
 }
 
@@ -116,13 +134,18 @@ window.onJob = (ev) => {
     return;
   }
   setBusy(false);
+  if (ev.type === "cancelled") {
+    setStatus("그만했어요.", 0);
+    toast("작업을 멈췄어요.");
+    return;
+  }
   if (ev.type === "error") {
     setStatus("문제가 생겼어요: " + ev.msg, 0, true);
     toast(ev.msg);
     return;
   }
   setStatus("완료!", 1);
-  const handlers = { find: showFindResult, download: onDownloaded, script: onScript, topic: onTopicVideo, clips: onClips };
+  const handlers = { find: showFindResult, verify: onVerified, download: onDownloaded, script: onScript, topic: onTopicVideo, clips: onClips };
   handlers[ev.kind]?.(ev.result);
 };
 
@@ -156,7 +179,10 @@ function searchLinks(q) {
   ];
 }
 
+let lastFind = null;
+
 function showFindResult(r) {
+  lastFind = r;
   const a = r.analysis || {};
   $("#findResult").classList.remove("hidden");
   $("#anaInput").textContent = r.input?.title ? "· " + r.input.title : "";
@@ -223,6 +249,16 @@ async function lens(path, engine) {
                : "검색창을 열었어요. 📁 버튼으로 장면 사진을 찾아 검색창에 끌어다 놓으세요.");
 }
 
+function onVerified(c) {
+  if (!lastFind) return;
+  const i = lastFind.candidates.findIndex((x) => x.id === c.id);
+  if (i >= 0) lastFind.candidates[i] = c;
+  lastFind.candidates.sort((a, b) => b.score - a.score);
+  renderCands(lastFind.candidates);
+  renderScenes(lastFind);
+  toast(c.score >= 60 ? `원본이 맞아요! (${c.score}%)` : c.score >= 30 ? `원본일 가능성이 있어요 (${c.score}%)` : `원본이 아닌 것 같아요 (${c.score}%)`);
+}
+
 function renderCands(cands) {
   const list = $("#candList");
   list.replaceChildren();
@@ -254,6 +290,10 @@ function candCard(c, i) {
       c.note ? el("div", { class: "cand-note" }, c.note) : null,
       el("div", { class: "cand-actions" },
         el("button", { class: "btn small", onclick: () => api.open_url(startUrl) }, "▶ 유튜브에서 보기"),
+        c.deep === undefined && !c.note
+          ? el("button", { class: "btn small verify", "data-job": "1", title: "이 영상을 받아서 2초마다 장면을 맞춰 봐요 (20~60초)",
+              onclick: () => startJob("verify", { id: c.id }, "정밀 확인 중...") }, "🔬 정밀 확인")
+          : null,
         downloadButtons(c.url),
       ),
     ),
@@ -383,6 +423,11 @@ async function loadLibrary() {
 function bind() {
   document.querySelectorAll(".nav-item").forEach((b) => b.addEventListener("click", () => showPage(b.dataset.page)));
   $("#btnOpenOutput").addEventListener("click", () => api.open_output());
+  $("#cancelBtn").addEventListener("click", async () => {
+    $("#cancelBtn").disabled = true;
+    setStatus("멈추는 중... (지금 하던 단계가 끝나면 멈춰요)");
+    await api.cancel();
+  });
   $("#libRefresh").addEventListener("click", loadLibrary);
 
   for (const kind of ["find", "clips"]) {
@@ -396,7 +441,8 @@ function bind() {
   findStart.dataset.needs = "file";
   findStart.addEventListener("click", () => {
     $("#findResult").classList.add("hidden");
-    startJob("find", { source: findSource() }, "원본 찾기를 시작했어요...");
+    startJob("find", { source: findSource(), speech: $("#optSpeech").checked, deep: $("#optDeep").checked },
+             "원본 찾기를 시작했어요...");
   });
   document.querySelectorAll(".input-tab").forEach((t) => t.addEventListener("click", () => {
     findMode = t.dataset.input;

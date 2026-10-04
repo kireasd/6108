@@ -80,7 +80,10 @@ def download_input(url, work, progress):
     try:
         with yt.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url.strip(), download=True)
+    except config.Cancelled:
+        raise
     except Exception as e:
+        progress(None, None)  # 그만하기를 눌러서 멈춘 거면 그대로 그만둔다
         raise ValueError("링크의 영상을 받지 못했어요. 비공개 영상이거나 로그인이 필요한 영상일 수 있어요. "
                          "이럴 땐 영상을 파일로 저장해서 넣어 주세요.\n(" + str(e)[:200] + ")")
     paths = glob.glob(os.path.join(work, "input.*"))
@@ -88,9 +91,10 @@ def download_input(url, work, progress):
 
 
 # ---------- 1~2. 분석 ----------
-def analyze(src, work, settings, progress):
+def analyze(src, work, settings, progress, go=lambda n: None, use_speech=True):
     """장면 나누기 + 대사 + AI 분석. (장면 목록, 비교용 장면, 대사, AI 결과)"""
-    progress(0.06, "장면이 바뀌는 곳 찾는 중")
+    go(1)
+    progress(0.06, "장면이 바뀌는 곳 찾는 중 (영상이 길면 1~2분)")
     scenes = frames.scenes(src, os.path.join(work, "scenes"))
     if not scenes:
         raise ValueError("영상에서 장면을 뽑지 못했어요. 영상 파일이 맞는지 확인해 주세요.")
@@ -103,10 +107,16 @@ def analyze(src, work, settings, progress):
             shots.append((t, p, idx))
         shots.sort()
 
-    progress(0.1, "말소리 알아듣는 중")
-    speech = _speech_with_limit(src, settings, progress)
+    go(2)
+    if use_speech:
+        progress(0.1, "말소리 알아듣는 중 (최대 1분 30초)")
+        speech = _speech_with_limit(src, settings, progress)
+    else:
+        progress(0.2, "대사 분석은 건너뛰어요")
+        speech = []
 
-    progress(0.22, "AI가 장면과 대사를 분석하는 중")
+    go(3)
+    progress(0.22, "AI가 장면과 대사를 분석하는 중 (10초~1분)")
     step = max(1, len(scenes) // 6)
     picks = [s["frame"] for s in scenes[::step]][:6]
     text = " ".join(t for _, _, t in speech)[:1500]
@@ -152,6 +162,7 @@ def _speech_with_limit(src, settings, progress, limit=90):
 
     threading.Thread(target=work, daemon=True).start()
     while not done.wait(1):
+        progress(None, None)  # 그만하기 확인
         if started[0] and time.time() - started[0] > limit:
             progress(0.2, "대사가 길거나 음악이 많아서, 지금까지 들은 대사로 다음 단계로 넘어가요")
             break
@@ -226,17 +237,18 @@ def quick_score(cands, shots, progress):
             progress(0.42 + 0.13 * (i + 1) / max(len(items), 1), f"후보 썸네일 비교 중 ({i + 1}/{len(items)})")
 
 
-def _download_small(url, out_dir):
+def _download_small(url, out_dir, progress=lambda f, d: None):
     """정밀 비교용으로 낮은 화질로 받는다."""
     yt = _youtube()
     opts = {"quiet": True, "noprogress": True, "format": "worst[height>=144][ext=mp4]/worst",
-            "outtmpl": os.path.join(out_dir, "small.%(ext)s"), "ffmpeg_location": video.ffmpeg()}
+            "outtmpl": os.path.join(out_dir, "small.%(ext)s"), "ffmpeg_location": video.ffmpeg(),
+            "progress_hooks": [lambda d: progress(None, None)]}
     with yt.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
 
-def deep_check(cand, shots, work, query_len, max_minutes=180):
+def deep_check(cand, shots, work, query_len, max_minutes=180, progress=lambda f, d: None):
     """후보 영상을 받아 2초마다 장면 비교.
 
     채우는 값: deep(같은 장면 비율 %), start/end(원본 속 위치), scenes(장면 번호→원본 시각),
@@ -248,8 +260,12 @@ def deep_check(cand, shots, work, query_len, max_minutes=180):
     folder = os.path.join(work, "cand_" + cand["id"])
     os.makedirs(folder, exist_ok=True)
     try:
-        small = _download_small(cand["url"], folder)
+        small = _download_small(cand["url"], folder, progress)
+        progress(None, None)
         refs = [(t, frames.ref_hashes(p), p) for t, p in frames.sample(small, os.path.join(folder, "f"))]
+    except config.Cancelled:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
     except Exception:
         cand["note"] = "영상을 받지 못해 정밀 비교를 못 했어요"
         shutil.rmtree(folder, ignore_errors=True)
@@ -341,49 +357,101 @@ def _clean_old_runs():
         shutil.rmtree(old, ignore_errors=True)
 
 
-def find(source, settings, progress=lambda f, d: None, deep_top=5):
-    """원본 찾기 전체 과정. source는 파일 경로 또는 링크. 결과 dict를 돌려준다."""
+_last = {}  # 마지막 원본 찾기의 비교 자료 (후보별 '정밀 확인' 버튼에서 다시 쓴다)
+
+
+def _stepper(progress, total):
+    """진행 안내에 '2/5단계 · ...'를 붙인다."""
+    state = {"n": 0}
+
+    def go(n):
+        state["n"] = n
+
+    def step_progress(frac, msg):
+        if msg is None:
+            return progress(frac, msg)
+        return progress(frac, f"{state['n']}/{total}단계 · {msg}")
+
+    return go, step_progress
+
+
+def _score(c):
+    c["score"] = c.get("deep", round(c.get("quick", 0) * 0.6))
+
+
+def find(source, settings, progress=lambda f, d: None, use_speech=True, auto_deep=False, deep_top=5):
+    """원본 찾기 전체 과정. source는 파일 경로 또는 링크. 결과 dict를 돌려준다.
+
+    auto_deep=False(빠른 찾기)면 정밀 비교는 하지 않고, 화면의 '정밀 확인' 버튼으로 후보마다 한다.
+    progress(None, None)은 '그만하기'를 눌렀는지 확인만 하는 신호다.
+    """
     _clean_old_runs()  # 지난번 결과의 장면 사진은 지운다 (이번 결과는 다음 검색 때까지 남김)
     work = config.new_work_dir("find_" + time.strftime("%Y%m%d_%H%M%S"))
+    key = settings.get("vision_key", "").strip()
+    total = 5 + bool(auto_deep) + bool(key) + is_url(source)
+    go, progress = _stepper(progress, total)
+    offset = 0
     input_id, input_title = None, ""
     if is_url(source):
+        offset = 1
+        go(1)
         progress(0.01, "링크의 영상 받는 중")
         src, input_id, input_title = download_input(source, work, progress)
     else:
         src = source
     query_len = video.duration(src)
-    scenes, shots, speech, info = analyze(src, work, settings, progress)
+    scenes, shots, speech, info = analyze(src, work, settings, progress,
+                                          go=lambda n: go(n + offset), use_speech=use_speech)
 
+    go(4 + offset)
     progress(0.3, f"유튜브에서 원본 후보 찾는 중 (검색어 {len(info['queries'])}개)")
     exclude = {input_id} if input_id else set()
     cands = search(info["queries"], exclude=exclude)
+    progress(None, None)
     ranked = []
     if cands:
         quick_score(cands, shots, progress)
         ranked = sorted(cands.values(), key=lambda c: (c["quick"], c["hits"]), reverse=True)
-        top = ranked[:deep_top]
-        for i, c in enumerate(top):
-            progress(0.56 + 0.22 * i / len(top), f"정밀 비교 중 ({i + 1}/{len(top)}): {c['title'][:30]}")
-            deep_check(c, shots, work, query_len)
+        if auto_deep:
+            go(5 + offset)
+            top = ranked[:deep_top]
+            for i, c in enumerate(top):
+                progress(0.56 + 0.22 * i / len(top), f"정밀 비교 중 ({i + 1}/{len(top)}): {c['title'][:30]}")
+                deep_check(c, shots, work, query_len, progress=progress)
         for c in ranked:
-            c["score"] = c.get("deep", round(c["quick"] * 0.6))
+            _score(c)
         ranked.sort(key=lambda c: c["score"], reverse=True)
 
+    go(total - bool(key))
     progress(0.8, "비슷한 결의 영상 찾는 중")
     taken = exclude | {c["id"] for c in ranked if c["score"] >= 30}
     similar = sorted(search(info["similar_queries"], per_query=6, exclude=taken).values(),
                      key=lambda c: (c["hits"], c["views"]), reverse=True)[:24]
 
-    key = settings.get("vision_key", "").strip()
     if key:
+        go(total)
         web_search_scenes(scenes, key, progress)
 
     for s in scenes:  # 화면에 보여줄 장면 사진
         s["image"] = frames.data_uri(s["frame"])
+    _last.clear()
+    _last.update(work=work, shots=shots, query_len=query_len, cands={c["id"]: c for c in ranked})
     progress(1, "완료!")
     return {"analysis": info, "speech": " ".join(t for _, _, t in speech), "duration": round(query_len),
             "input": {"title": input_title or os.path.basename(src), "url": source if is_url(source) else ""},
             "scenes": scenes, "candidates": ranked[:20], "similar": similar, "web_search": bool(key)}
+
+
+def verify(cand_id, progress=lambda f, d: None):
+    """후보 하나만 정밀 확인 (화면의 '정밀 확인' 버튼)."""
+    cand = _last.get("cands", {}).get(cand_id)
+    if not cand or not os.path.isdir(_last.get("work", "")):
+        raise ValueError("원본 찾기 결과가 없어요. 원본 찾기를 다시 해 주세요.")
+    progress(0.1, f"정밀 확인 중: {cand['title'][:40]} (영상 받는 중, 20~60초)")
+    deep_check(cand, _last["shots"], _last["work"], _last["query_len"], progress=progress)
+    _score(cand)
+    progress(1, "정밀 확인 완료!")
+    return cand
 
 
 def download_original(url, settings, progress=lambda f, d: None):
@@ -405,7 +473,10 @@ def download_original(url, settings, progress=lambda f, d: None):
         with yt.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             path = os.path.splitext(ydl.prepare_filename(info))[0] + ".mp4"
+    except config.Cancelled:
+        raise
     except Exception as e:
+        progress(None, None)
         raise ValueError("영상을 받지 못했어요. 비공개이거나 로그인이 필요한 영상일 수 있어요. "
                          "'열기'로 직접 확인해 주세요.\n(" + str(e)[:200] + ")")
     progress(1, "다운로드 완료!")

@@ -16,10 +16,10 @@ import webview
 
 from core import clip_mode, config, llm, source_finder, topic_mode, tts, visuals
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 UI_FILE = os.path.join(config.APP_DIR, "ui", "index.html")
 LOG_FILE = os.path.join(config.APP_DIR, "app.log")
-JOB_NAMES = {"find": "원본 찾기", "download": "원본 받기", "script": "대본 만들기",
+JOB_NAMES = {"find": "원본 찾기", "verify": "정밀 확인", "download": "원본 받기", "script": "대본 만들기",
              "topic": "영상 만들기", "clips": "긴 영상 자르기"}
 VIDEO_TYPES = ("영상 파일 (*.mp4;*.mov;*.mkv;*.avi;*.webm;*.m4v)", "모든 파일 (*.*)")
 
@@ -54,6 +54,7 @@ class Api:
         self._settings = config.load_settings()
         self._window = None
         self._busy = None  # 지금 하고 있는 작업 이름
+        self._cancel = threading.Event()
 
     # ---------- 화면에 보여줄 정보 ----------
     def get_state(self):
@@ -150,14 +151,25 @@ class Api:
         threading.Thread(target=self._run, args=(kind, job, params or {}), daemon=True).start()
         return {"ok": True}
 
+    def cancel(self):
+        """'그만하기' 버튼. 지금 하는 작업이 다음 확인 지점에서 멈춘다."""
+        if self._busy:
+            self._cancel.set()
+        return bool(self._busy)
+
     def _send(self, payload):
         if self._window:
             self._window.evaluate_js(f"window.onJob({json.dumps(payload, ensure_ascii=False)})")
 
     def _run(self, kind, job, params):
         last = [0.0]
+        self._cancel.clear()
 
         def progress(frac, msg):
+            if self._cancel.is_set():
+                raise config.Cancelled()
+            if frac is None:  # 그만하기 확인만 하는 신호
+                return
             now = time.time()
             if now - last[0] > 0.15 or frac >= 1:  # 화면에 너무 자주 보내지 않기
                 last[0] = now
@@ -166,14 +178,23 @@ class Api:
         try:
             result = job(params, progress)
             self._send({"type": "done", "kind": kind, "result": result})
+        except config.Cancelled:
+            self._send({"type": "cancelled", "kind": kind})
         except Exception as e:
-            log_error(f"{kind} 실패\n{traceback.format_exc()}")
-            self._send({"type": "error", "kind": kind, "msg": str(e) or e.__class__.__name__})
+            if self._cancel.is_set():
+                self._send({"type": "cancelled", "kind": kind})
+            else:
+                log_error(f"{kind} 실패\n{traceback.format_exc()}")
+                self._send({"type": "error", "kind": kind, "msg": str(e) or e.__class__.__name__})
         finally:
             self._busy = None
 
     def _job_find(self, p, progress):
-        return source_finder.find(p["source"], self._settings, progress)
+        return source_finder.find(p["source"], self._settings, progress,
+                                  use_speech=p.get("speech", True), auto_deep=p.get("deep", False))
+
+    def _job_verify(self, p, progress):
+        return source_finder.verify(p["id"], progress)
 
     def _job_download(self, p, progress):
         return {"path": source_finder.download_original(p["url"], self._settings, progress),
