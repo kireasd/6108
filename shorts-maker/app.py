@@ -16,7 +16,7 @@ import webview
 
 from core import clip_mode, config, llm, source_finder, topic_mode, tts, visuals
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 UI_FILE = os.path.join(config.APP_DIR, "ui", "index.html")
 LOG_FILE = os.path.join(config.APP_DIR, "app.log")
 JOB_NAMES = {"find": "원본 찾기", "download": "원본 받기", "script": "대본 만들기",

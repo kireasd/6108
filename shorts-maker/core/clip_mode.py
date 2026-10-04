@@ -49,13 +49,23 @@ def _load_whisper(settings):
     return _whisper
 
 
-def transcribe(src, settings, progress=lambda f, d: None):
-    """영상 속 말을 글자로. [(시작초, 끝초, 문장)]"""
-    progress(0.02, "음성 인식 AI 불러오는 중 (처음엔 내려받느라 오래 걸려요)")
+def transcribe(src, settings, progress=lambda f, d: None, out=None, fast=False):
+    """영상 속 말을 글자로. [(시작초, 끝초, 문장)]
+
+    out: 목록을 주면 알아들은 문장을 하나씩 바로 넣는다 (시간제한으로 중간에 그만둘 때 쓰려고).
+    fast: 원본 찾기용. 정확도보다 속도를 우선한다.
+    """
+    progress(0.02, "음성 인식 AI 불러오는 중 (처음 한 번은 내려받느라 5~15분 걸려요)")
     model = _load_whisper(settings)
     total = video.duration(src)
-    segments, _ = model.transcribe(src, language="ko", vad_filter=True)
-    result = []
+    segments, _ = model.transcribe(
+        src, language="ko", vad_filter=True,
+        # 노래·음악 부분에서 같은 곳을 계속 다시 듣느라 멈춘 것처럼 되는 것을 막는다
+        condition_on_previous_text=False,
+        temperature=0.0 if fast else [0.0, 0.2, 0.4],
+        beam_size=1 if fast else 5,
+    )
+    result = out if out is not None else []
     for seg in segments:
         result.append((seg.start, seg.end, seg.text.strip()))
         progress(0.05 + 0.5 * min(seg.end / total, 1), f"말 알아듣는 중... {int(seg.end)}/{int(total)}초")

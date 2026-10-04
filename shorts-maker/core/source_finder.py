@@ -12,6 +12,7 @@
 import glob
 import os
 import shutil
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
@@ -103,12 +104,7 @@ def analyze(src, work, settings, progress):
         shots.sort()
 
     progress(0.1, "말소리 알아듣는 중")
-    speech = []
-    try:
-        from . import clip_mode
-        speech = clip_mode.transcribe(src, settings, lambda f, d: progress(0.1 + 0.1 * f, d))
-    except Exception:
-        pass  # 말소리가 없거나 음성 인식을 못 써도 장면만으로 계속한다
+    speech = _speech_with_limit(src, settings, progress)
 
     progress(0.22, "AI가 장면과 대사를 분석하는 중")
     step = max(1, len(scenes) // 6)
@@ -130,6 +126,36 @@ def analyze(src, work, settings, progress):
     info["queries"] = list(dict.fromkeys(queries))
     info["similar_queries"] = [str(q).strip() for q in info.get("similar_queries", []) if str(q).strip()]
     return scenes, shots, speech, info
+
+
+def _speech_with_limit(src, settings, progress, limit=90):
+    """대사 알아듣기. limit초가 넘으면 거기까지 들은 대사만 가지고 넘어간다.
+
+    말소리가 없거나 음성 인식을 못 써도 장면만으로 계속할 수 있으니 실패해도 괜찮다.
+    """
+    from . import clip_mode
+    heard, done = [], threading.Event()
+    started = [None]  # 음성 인식 AI를 다 불러온 뒤부터 시간을 잰다 (처음 내려받는 시간은 빼고)
+
+    def report(frac, msg):
+        if started[0] is None and frac >= 0.05:
+            started[0] = time.time()
+        progress(0.1 + 0.1 * frac, msg)
+
+    def work():
+        try:
+            clip_mode.transcribe(src, settings, report, out=heard, fast=True)
+        except Exception:
+            pass
+        finally:
+            done.set()
+
+    threading.Thread(target=work, daemon=True).start()
+    while not done.wait(1):
+        if started[0] and time.time() - started[0] > limit:
+            progress(0.2, "대사가 길거나 음악이 많아서, 지금까지 들은 대사로 다음 단계로 넘어가요")
+            break
+    return list(heard)
 
 
 # ---------- 3. 유튜브 후보 ----------
