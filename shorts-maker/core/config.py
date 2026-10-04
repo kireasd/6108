@@ -28,8 +28,15 @@ def desktop_dir():
 
 DEFAULTS = {
     "output_dir": os.path.join(desktop_dir(), "쇼츠"),
+    "provider": "local",
     "ollama_url": "http://localhost:11434",
     "ollama_model": "gemma3:12b",
+    "claude_key": "",
+    "claude_model": "claude-opus-5-5",
+    "openai_key": "",
+    "openai_model": "gpt-5-mini",
+    "gemini_key": "",
+    "gemini_model": "gemini-2.5-flash",
     "voice": "ko-KR-SunHiNeural",
     "voice_rate": "+10%",
     "pexels_key": "",

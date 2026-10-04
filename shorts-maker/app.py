@@ -8,6 +8,7 @@ import gradio as gr
 from core import clip_mode, config, llm, topic_mode, tts, visuals
 
 settings = config.load_settings()
+PROVIDER_BY_LABEL = {label: key for key, label in llm.PROVIDERS.items()}
 
 
 def _progress(p):
@@ -59,16 +60,35 @@ def ui_status():
     return f"{'🟢' if ok else '🔴'} {msg}\n🎬 {pexels}\n📁 저장 위치: {settings['output_dir']}"
 
 
-def ui_save_settings(output_dir, model, voice_label, rate, pexels_key):
+def ui_ai_status():
+    ok, msg = llm.check(settings)
+    return f"{'🟢' if ok else '🔴'} {msg}"
+
+
+def ui_pick_provider(label):
+    settings["provider"] = PROVIDER_BY_LABEL[label]
+    config.save_settings(settings)
+    return ui_ai_status()
+
+
+def ui_save_settings(output_dir, local_model, claude_key, claude_model, openai_key, openai_model,
+                     gemini_key, gemini_model, voice_label, rate, pexels_key):
+    d = config.DEFAULTS
     settings.update({
-        "output_dir": output_dir.strip() or config.DEFAULTS["output_dir"],
-        "ollama_model": model.strip() or config.DEFAULTS["ollama_model"],
-        "voice": tts.VOICES.get(voice_label, config.DEFAULTS["voice"]),
+        "output_dir": output_dir.strip() or d["output_dir"],
+        "ollama_model": local_model.strip() or d["ollama_model"],
+        "claude_key": claude_key.strip(),
+        "claude_model": claude_model.strip() or d["claude_model"],
+        "openai_key": openai_key.strip(),
+        "openai_model": openai_model.strip() or d["openai_model"],
+        "gemini_key": gemini_key.strip(),
+        "gemini_model": gemini_model.strip() or d["gemini_model"],
+        "voice": tts.VOICES.get(voice_label, d["voice"]),
         "voice_rate": f"{int(rate):+d}%",
         "pexels_key": pexels_key.strip(),
     })
     config.save_settings(settings)
-    return "💾 저장했어요! (저장 위치를 바꿨다면 프로그램을 껐다 다시 켜 주세요)\n" + ui_status()
+    return "💾 저장했어요! (저장 위치를 바꿨다면 프로그램을 껐다 다시 켜 주세요)\n" + ui_status(), ui_ai_status()
 
 
 def ui_open_folder():
@@ -88,7 +108,13 @@ def voice_label():
 
 
 with gr.Blocks(title="쇼츠 자동 제작기") as demo:
-    gr.Markdown("# 🎬 쇼츠 자동 제작기\n내 컴퓨터 AI로 쇼츠를 만들어요. 완성된 영상은 **바탕화면 › 쇼츠** 폴더에 저장돼요.")
+    gr.Markdown("# 🎬 쇼츠 자동 제작기\n완성된 영상은 **바탕화면 › 쇼츠** 폴더에 저장돼요.")
+    with gr.Row():
+        provider = gr.Dropdown(list(llm.PROVIDERS.values()), label="🤖 대본을 쓸 AI",
+                               value=llm.PROVIDERS[settings["provider"]], scale=2)
+        provider_msg = gr.Textbox(label="AI 상태", value=ui_ai_status,
+                                  interactive=False, scale=3)
+    provider.change(ui_pick_provider, provider, provider_msg)
 
     with gr.Tab("🅰 주제로 만들기"):
         with gr.Row():
@@ -120,7 +146,20 @@ with gr.Blocks(title="쇼츠 자동 제작기") as demo:
             refresh_btn = gr.Button("상태 다시 확인")
             open_btn = gr.Button("📁 저장 폴더 열기")
         out_dir = gr.Textbox(label="저장 위치", value=settings["output_dir"])
-        model = gr.Textbox(label="AI 모델 (Ollama)", value=settings["ollama_model"])
+        with gr.Accordion("🏠 내 컴퓨터 AI (무료)", open=False):
+            local_model = gr.Textbox(label="모델 이름 (Ollama)", value=settings["ollama_model"])
+        with gr.Accordion("💳 Claude 키", open=False):
+            gr.Markdown("https://console.anthropic.com 에서 가입 → API Keys → Create Key")
+            claude_key = gr.Textbox(label="Claude 키", value=settings["claude_key"], type="password")
+            claude_model = gr.Textbox(label="모델 이름", value=settings["claude_model"])
+        with gr.Accordion("💳 ChatGPT 키", open=False):
+            gr.Markdown("https://platform.openai.com/api-keys 에서 가입 → Create new secret key")
+            openai_key = gr.Textbox(label="ChatGPT 키", value=settings["openai_key"], type="password")
+            openai_model = gr.Textbox(label="모델 이름", value=settings["openai_model"])
+        with gr.Accordion("💳 Gemini 키", open=False):
+            gr.Markdown("https://aistudio.google.com/apikey 에서 구글 계정으로 로그인 → Create API key")
+            gemini_key = gr.Textbox(label="Gemini 키", value=settings["gemini_key"], type="password")
+            gemini_model = gr.Textbox(label="모델 이름", value=settings["gemini_model"])
         voice = gr.Dropdown(list(tts.VOICES), label="목소리", value=voice_label())
         rate = gr.Slider(-30, 50, value=int(settings["voice_rate"].rstrip("%")), step=5,
                          label="말하는 속도 (%)")
@@ -130,7 +169,9 @@ with gr.Blocks(title="쇼츠 자동 제작기") as demo:
         save_btn = gr.Button("💾 설정 저장", variant="primary")
         refresh_btn.click(ui_status, None, status)
         open_btn.click(ui_open_folder, None, status)
-        save_btn.click(ui_save_settings, [out_dir, model, voice, rate, pexels], status)
+        save_btn.click(ui_save_settings, [out_dir, local_model, claude_key, claude_model, openai_key,
+                                          openai_model, gemini_key, gemini_model, voice, rate, pexels],
+                       [status, provider_msg])
 
 
 if __name__ == "__main__":

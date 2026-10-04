@@ -39,8 +39,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem ---------- 3. Ollama (내 컴퓨터 AI) ----------
+rem ---------- 3~4. 내 컴퓨터 AI (선택) ----------
 echo.
+echo --------------------------------------------
+echo  내 컴퓨터 AI(무료)도 설치할까요?
+echo   Y = 설치 (약 8GB, 10~30분 더 걸려요. 사용료 0원)
+echo   N = 건너뛰기 (유료 AI만 쓸 거면 N. 나중에 install.bat을 다시 실행하면 설치할 수 있어요)
+echo --------------------------------------------
+choice /c YN /n /m "Y 또는 N을 누르세요: "
+if errorlevel 2 goto done
+
 set "OLLAMA=%LOCALAPPDATA%\Programs\Ollama\ollama.exe"
 if exist "%OLLAMA%" (
     echo [3/4] Ollama가 이미 있어요.
@@ -55,7 +63,6 @@ if not exist "%OLLAMA%" (
     exit /b 1
 )
 
-rem ---------- 4. AI 모델 ----------
 echo.
 echo [4/4] AI 모델을 내려받는 중... (약 8GB, 인터넷 속도에 따라 10~30분)
 curl -s http://localhost:11434 >nul 2>nul || (start "" /min "%OLLAMA%" serve & timeout /t 5 /nobreak >nul)
@@ -67,6 +74,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:done
 echo.
 echo ============================================
 echo   설치 완료! 이제 run.bat을 더블클릭하세요.
