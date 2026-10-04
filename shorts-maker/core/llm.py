@@ -1,4 +1,5 @@
 """AI와 대화하기. 내 컴퓨터 AI(Ollama)와 유료 AI(Claude, ChatGPT, Gemini) 중 골라 쓴다."""
+import base64
 import json
 import re
 
@@ -19,18 +20,26 @@ class LLMError(Exception):
     pass
 
 
-def ask_json(settings, prompt, system=None):
-    """설정에서 고른 AI에게 질문하고 JSON 답을 받는다."""
+def ask_json(settings, prompt, system=None, images=None):
+    """설정에서 고른 AI에게 질문하고 JSON 답을 받는다. images: 함께 보여줄 JPG 경로 목록."""
     provider = settings.get("provider", "local")
     if provider != "local" and not settings.get(KEY_FIELDS[provider], "").strip():
         raise LLMError(f"{PROVIDERS[provider]} 키(API 키)가 없어요. ⚙ 설정에서 키를 넣어 주세요.")
     ask = {"local": _ask_ollama, "claude": _ask_claude,
            "openai": _ask_openai, "gemini": _ask_gemini}[provider]
-    return parse_json(ask(settings, prompt, system or ""))
+    return parse_json(ask(settings, prompt, system or "", [_b64(p) for p in images or []]))
 
 
-def _ask_ollama(settings, prompt, system):
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+def _b64(path):
+    with open(path, "rb") as f:
+        return base64.standard_b64encode(f.read()).decode("ascii")
+
+
+def _ask_ollama(settings, prompt, system, images):
+    user = {"role": "user", "content": prompt}
+    if images:
+        user["images"] = images
+    messages = [{"role": "system", "content": system}, user]
     try:
         res = requests.post(
             settings["ollama_url"].rstrip("/") + "/api/chat",
@@ -49,7 +58,7 @@ def _ask_ollama(settings, prompt, system):
     return res.json()["message"]["content"]
 
 
-def _ask_claude(settings, prompt, system):
+def _ask_claude(settings, prompt, system, images):
     import anthropic
     client = anthropic.Anthropic(api_key=settings["claude_key"].strip())
     try:
@@ -57,7 +66,11 @@ def _ask_claude(settings, prompt, system):
             model=settings["claude_model"],
             max_tokens=16000,
             system=system + " JSON 외의 다른 글은 쓰지 않는다.",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": [
+                *({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": d}}
+                  for d in images),
+                {"type": "text", "text": prompt},
+            ]}],
             output_config={"effort": "medium"},
             # 안전 검사로 거절되면 다른 Claude 모델이 이어서 답하게 한다
             betas=["server-side-fallback-2026-07-01"],
@@ -80,13 +93,16 @@ def _ask_claude(settings, prompt, system):
     return "".join(b.text for b in response.content if b.type == "text")
 
 
-def _ask_openai(settings, prompt, system):
+def _ask_openai(settings, prompt, system, images):
     import openai
     client = openai.OpenAI(api_key=settings["openai_key"].strip())
     try:
         response = client.chat.completions.create(
             model=settings["openai_model"],
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": [
+                *({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + d}} for d in images),
+                {"type": "text", "text": prompt},
+            ]}],
             response_format={"type": "json_object"},
         )
     except openai.AuthenticationError:
@@ -100,14 +116,15 @@ def _ask_openai(settings, prompt, system):
     return response.choices[0].message.content or ""
 
 
-def _ask_gemini(settings, prompt, system):
+def _ask_gemini(settings, prompt, system, images):
     from google import genai
     from google.genai import errors, types
     client = genai.Client(api_key=settings["gemini_key"].strip())
     try:
         response = client.models.generate_content(
             model=settings["gemini_model"],
-            contents=prompt,
+            contents=[*(types.Part.from_bytes(data=base64.b64decode(d), mime_type="image/jpeg")
+                        for d in images), prompt],
             config=types.GenerateContentConfig(system_instruction=system,
                                                response_mime_type="application/json"),
         )

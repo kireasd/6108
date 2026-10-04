@@ -43,10 +43,12 @@ if errorlevel 8 (
 
 echo 새로 필요한 부품이 있으면 설치하는 중...
 venv\Scripts\python.exe -m pip install -r requirements.txt -q
+rem 유튜브가 자주 바뀌어서 유튜브 도우미는 항상 최신으로
+venv\Scripts\python.exe -m pip install -U "yt-dlp[default]" -q
 rmdir /s /q "%TMPDIR%"
 
 echo.
 echo ============================================
-echo   업데이트 완료! run.bat으로 다시 켜 주세요.
+echo   업데이트 완료! 프로그램을 다시 켜 주세요.
 echo ============================================
 pause

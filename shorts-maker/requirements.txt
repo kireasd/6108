@@ -1,9 +1,10 @@
-gradio>=5.0
+pywebview>=5.0
 edge-tts>=7.0
 pillow>=10.0
 requests>=2.31
 imageio-ffmpeg>=0.5
 faster-whisper>=1.1
+yt-dlp[default]
 anthropic>=1.11
 openai>=1.0
 google-genai>=1.0

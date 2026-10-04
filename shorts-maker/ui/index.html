@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>쇼츠 자동 제작기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <!-- 왼쪽 메뉴 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">쇼츠</div>
+      <div>
+        <div class="brand-name">쇼츠 자동 제작기</div>
+        <div class="brand-sub">Shorts Maker</div>
+      </div>
+    </div>
+
+    <div class="nav-label">작업 공간</div>
+    <nav class="nav">
+      <button class="nav-item active" data-page="find"><span class="ico">🔍</span>원본 찾기</button>
+      <button class="nav-item" data-page="topic"><span class="ico">✍️</span>주제로 만들기</button>
+      <button class="nav-item" data-page="clips"><span class="ico">✂️</span>긴 영상 자르기</button>
+      <button class="nav-item" data-page="library"><span class="ico">🎞️</span>만든 영상</button>
+      <button class="nav-item" data-page="settings"><span class="ico">⚙️</span>설정</button>
+    </nav>
+
+    <div class="side-bottom">
+      <button class="btn side-btn" id="btnOpenOutput">완성 영상 폴더 열기</button>
+      <div class="side-card">
+        <div class="side-card-label">대본을 쓸 AI</div>
+        <div class="ai-pill" id="aiPill"><span class="dot"></span><span id="aiName">-</span></div>
+        <div class="side-card-msg" id="aiMsg"></div>
+      </div>
+      <div class="version" id="version"></div>
+    </div>
+  </aside>
+
+  <!-- 오른쪽 내용 -->
+  <main class="main">
+    <!-- 🔍 원본 찾기 -->
+    <section class="page active" id="page-find">
+      <header class="page-head">
+        <div>
+          <h1>원본 찾기</h1>
+          <p>쇼츠를 넣으면 AI가 장면과 대사를 꼼꼼히 분석해서 <b>원본 영상</b>과 <b>원본의 몇 분 몇 초 부분</b>인지 찾아 줘요.</p>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="pick-row">
+          <button class="btn" id="findPick">🎬 쇼츠 영상 선택</button>
+          <div class="pick-name" id="findFile">선택한 영상이 없어요</div>
+          <button class="btn primary" id="findStart" disabled>원본 찾기 시작 →</button>
+        </div>
+        <ol class="steps">
+          <li>장면 12장과 대사를 뽑아요</li>
+          <li>AI가 인물·화면 글자·분위기를 분석해 검색어를 만들어요</li>
+          <li>유튜브에서 후보를 모아 썸네일로 1차 비교해요</li>
+          <li>상위 5개는 영상을 받아 2초마다 장면을 맞춰 봐요</li>
+        </ol>
+      </div>
+
+      <div id="findResult" class="hidden">
+        <div class="card">
+          <div class="card-title">AI 분석 결과</div>
+          <p class="summary" id="anaSummary"></p>
+          <div class="kv" id="anaKv"></div>
+          <div class="chips" id="anaQueries"></div>
+        </div>
+        <div class="section-title">원본 후보 <span class="muted" id="candCount"></span></div>
+        <div class="cand-list" id="candList"></div>
+        <p class="notice">⚠️ 다른 사람의 영상을 다시 올리면 저작권 문제가 생길 수 있어요. 원본 채널의 허락을 받았거나 사용이 허용된 영상만 쓰세요.</p>
+      </div>
+    </section>
+
+    <!-- ✍️ 주제로 만들기 -->
+    <section class="page" id="page-topic">
+      <header class="page-head">
+        <div>
+          <h1>주제로 만들기</h1>
+          <p>주제를 적으면 AI가 대본을 쓰고, 목소리·배경·자막을 붙여 쇼츠를 완성해요.</p>
+        </div>
+      </header>
+      <div class="card">
+        <label class="field">
+          <span>① 주제</span>
+          <input id="topicInput" placeholder="예: 고양이가 상자를 좋아하는 이유">
+        </label>
+        <div class="row">
+          <label class="field small">
+            <span>영상 길이</span>
+            <select id="topicSeconds">
+              <option value="30">30초</option>
+              <option value="45" selected>45초</option>
+              <option value="60">60초</option>
+            </select>
+          </label>
+          <button class="btn primary" id="topicScriptBtn">② 대본 만들기</button>
+        </div>
+      </div>
+      <div class="card">
+        <label class="field">
+          <span>제목 (화면 위에 나와요, 고쳐도 돼요)</span>
+          <input id="topicTitle">
+        </label>
+        <label class="field">
+          <span>대본 (한 줄 = 한 장면, 마음대로 고쳐도 돼요)</span>
+          <textarea id="topicScript" rows="8"></textarea>
+        </label>
+        <button class="btn primary" id="topicMakeBtn">③ 영상 만들기</button>
+      </div>
+      <div id="topicResult"></div>
+    </section>
+
+    <!-- ✂️ 긴 영상 자르기 -->
+    <section class="page" id="page-clips">
+      <header class="page-head">
+        <div>
+          <h1>긴 영상 자르기</h1>
+          <p>긴 영상을 넣으면 AI가 재밌는 부분을 골라 세로 쇼츠 여러 개로 만들어요.</p>
+        </div>
+      </header>
+      <div class="card">
+        <div class="pick-row">
+          <button class="btn" id="clipsPick">🎬 긴 영상 선택</button>
+          <div class="pick-name" id="clipsFile">선택한 영상이 없어요</div>
+        </div>
+        <div class="row">
+          <label class="field small">
+            <span>몇 개 만들까요?</span>
+            <select id="clipsCount">
+              <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+            </select>
+          </label>
+          <button class="btn primary" id="clipsStart" disabled>쇼츠 만들기 →</button>
+        </div>
+        <p class="hint">1시간짜리 영상이면 10~20분쯤 걸려요. 처음 한 번은 음성 인식 AI를 내려받느라 더 걸려요.</p>
+      </div>
+      <div id="clipsResult"></div>
+    </section>
+
+    <!-- 🎞️ 만든 영상 -->
+    <section class="page" id="page-library">
+      <header class="page-head">
+        <div>
+          <h1>만든 영상</h1>
+          <p>완성 영상 폴더에 있는 영상이에요. 누르면 기본 동영상 플레이어로 열려요.</p>
+        </div>
+        <button class="btn" id="libRefresh">↻ 새로고침</button>
+      </header>
+      <div class="lib-list" id="libList"></div>
+    </section>
+
+    <!-- ⚙️ 설정 -->
+    <section class="page" id="page-settings">
+      <header class="page-head">
+        <div>
+          <h1>설정</h1>
+          <p>바꾼 뒤에는 맨 아래 <b>설정 저장</b>을 눌러 주세요.</p>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="card-title">대본을 쓸 AI</div>
+        <div class="provider-grid" id="providerGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">AI 키와 모델</div>
+        <details>
+          <summary>🏠 내 컴퓨터 AI (무료)</summary>
+          <label class="field"><span>모델 이름 (Ollama)</span><input data-key="ollama_model"></label>
+        </details>
+        <details>
+          <summary>💳 Claude</summary>
+          <p class="hint">console.anthropic.com 에서 가입 → API Keys → Create Key</p>
+          <label class="field"><span>Claude 키</span><input type="password" data-key="claude_key"></label>
+          <label class="field"><span>모델 이름</span><input data-key="claude_model"></label>
+        </details>
+        <details>
+          <summary>💳 ChatGPT</summary>
+          <p class="hint">platform.openai.com/api-keys 에서 가입 → Create new secret key</p>
+          <label class="field"><span>ChatGPT 키</span><input type="password" data-key="openai_key"></label>
+          <label class="field"><span>모델 이름</span><input data-key="openai_model"></label>
+        </details>
+        <details>
+          <summary>💳 Gemini</summary>
+          <p class="hint">aistudio.google.com/apikey 에서 구글 계정으로 로그인 → Create API key</p>
+          <label class="field"><span>Gemini 키</span><input type="password" data-key="gemini_key"></label>
+          <label class="field"><span>모델 이름</span><input data-key="gemini_model"></label>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="card-title">목소리와 배경</div>
+        <div class="row">
+          <label class="field"><span>목소리</span><select data-key="voice" id="voiceSelect"></select></label>
+          <label class="field small"><span>말하는 속도</span><input data-key="voice_rate" placeholder="+10%"></label>
+        </div>
+        <label class="field">
+          <span>Pexels 키 (없으면 단색 배경, pexels.com/api 에서 무료 발급)</span>
+          <input type="password" data-key="pexels_key">
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">저장 위치</div>
+        <div class="row">
+          <label class="field"><span>완성 영상 폴더</span><input data-key="output_dir"></label>
+          <button class="btn" id="pickOutput">폴더 고르기</button>
+        </div>
+      </div>
+
+      <button class="btn primary wide" id="saveSettings">💾 설정 저장</button>
+    </section>
+  </main>
+</div>
+
+<!-- 아래 진행 안내 -->
+<footer class="statusbar">
+  <div class="status-label">진행 안내</div>
+  <div class="status-msg" id="statusMsg">준비됐어요.</div>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+</footer>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

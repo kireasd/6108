@@ -39,6 +39,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem ---------- 원본 찾기용 도우미 (유튜브 검색·다운로드에 필요) ----------
+where deno >nul 2>nul || if not exist "%USERPROFILE%\.deno\bin\deno.exe" (
+    echo.
+    echo [+] 유튜브 도우미(Deno)를 설치하는 중...
+    winget install -e --id DenoLand.Deno --accept-package-agreements --accept-source-agreements
+)
+
+rem ---------- 바탕화면 바로가기 ----------
+powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\쇼츠 자동 제작기.lnk'); $s.TargetPath='%~dp0run.bat'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.IconLocation='%SystemRoot%\System32\imageres.dll,18'; $s.Save()"
+echo [+] 바탕화면에 '쇼츠 자동 제작기' 아이콘을 만들었어요.
+
 rem ---------- 3~4. 내 컴퓨터 AI (선택) ----------
 echo.
 echo --------------------------------------------
@@ -77,6 +88,6 @@ if errorlevel 1 (
 :done
 echo.
 echo ============================================
-echo   설치 완료! 이제 run.bat을 더블클릭하세요.
+echo   설치 완료! 바탕화면의 '쇼츠 자동 제작기' 아이콘을 더블클릭하세요.
 echo ============================================
 pause
