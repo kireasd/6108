@@ -1,0 +1,9 @@
+gradio>=5.0
+edge-tts>=7.0
+pillow>=10.0
+requests>=2.31
+imageio-ffmpeg>=0.5
+faster-whisper>=1.1
+# 그래픽카드(NVIDIA)로 음성 인식을 빠르게 하기 위한 라이브러리
+nvidia-cublas-cu12; sys_platform == "win32"
+nvidia-cudnn-cu12==9.*; sys_platform == "win32"
