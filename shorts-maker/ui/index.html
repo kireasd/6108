@@ -45,33 +45,57 @@
       <header class="page-head">
         <div>
           <h1>원본 찾기</h1>
-          <p>쇼츠를 넣으면 AI가 장면과 대사를 꼼꼼히 분석해서 <b>원본 영상</b>과 <b>원본의 몇 분 몇 초 부분</b>인지 찾아 줘요.</p>
+          <p>영상을 넣으면 장면마다 분석해서 <b>원본 영상</b>과 <b>비슷한 결의 영상</b>을 찾아 줘요. 결과는 화면에서 먼저 확인할 수 있어요.</p>
         </div>
       </header>
 
       <div class="card">
-        <div class="pick-row">
-          <button class="btn" id="findPick">🎬 쇼츠 영상 선택</button>
+        <div class="input-tabs">
+          <button class="input-tab active" data-input="file">📁 파일로 넣기</button>
+          <button class="input-tab" data-input="link">🔗 링크로 넣기</button>
+        </div>
+        <div class="pick-row" id="inputFile">
+          <button class="btn" id="findPick">🎬 영상 선택</button>
           <div class="pick-name" id="findFile">선택한 영상이 없어요</div>
+        </div>
+        <div class="pick-row hidden" id="inputLink">
+          <input class="link-input" id="findLink" placeholder="유튜브·틱톡·인스타 영상 주소를 붙여 넣으세요 (예: https://www.youtube.com/shorts/...)">
+        </div>
+        <div class="start-row">
+          <span class="hint" id="webHint"></span>
           <button class="btn primary" id="findStart" disabled>원본 찾기 시작 →</button>
         </div>
-        <ol class="steps">
-          <li>장면 12장과 대사를 뽑아요</li>
-          <li>AI가 인물·화면 글자·분위기를 분석해 검색어를 만들어요</li>
-          <li>유튜브에서 후보를 모아 썸네일로 1차 비교해요</li>
-          <li>상위 5개는 영상을 받아 2초마다 장면을 맞춰 봐요</li>
-        </ol>
       </div>
 
       <div id="findResult" class="hidden">
         <div class="card">
-          <div class="card-title">AI 분석 결과</div>
+          <div class="card-title">AI 분석 결과 <span class="muted" id="anaInput"></span></div>
           <p class="summary" id="anaSummary"></p>
-          <div class="kv" id="anaKv"></div>
+          <dl class="kv" id="anaKv"></dl>
           <div class="chips" id="anaQueries"></div>
         </div>
-        <div class="section-title">원본 후보 <span class="muted" id="candCount"></span></div>
-        <div class="cand-list" id="candList"></div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="scenes">🎞️ 장면별 확인 <span id="cntScenes"></span></button>
+          <button class="tab" data-tab="cands">🎯 원본 후보 <span id="cntCands"></span></button>
+          <button class="tab" data-tab="similar">✨ 비슷한 결의 영상 <span id="cntSimilar"></span></button>
+        </div>
+
+        <div class="tab-body" id="tab-scenes">
+          <p class="hint top">장면 사진 아래 <b>구글 렌즈</b>를 누르면 사진이 복사되고 구글 이미지 검색이 열려요. 검색창에서 <b>Ctrl+V</b>만 누르세요.</p>
+          <div class="scene-grid" id="sceneGrid"></div>
+        </div>
+        <div class="tab-body hidden" id="tab-cands">
+          <div class="cand-list" id="candList"></div>
+        </div>
+        <div class="tab-body hidden" id="tab-similar">
+          <div class="card trend">
+            <div class="card-title">이 영상의 컨셉</div>
+            <p id="trendText"></p>
+            <div class="chips" id="trendLinks"></div>
+          </div>
+          <div class="similar-grid" id="similarGrid"></div>
+        </div>
         <p class="notice">⚠️ 다른 사람의 영상을 다시 올리면 저작권 문제가 생길 수 있어요. 원본 채널의 허락을 받았거나 사용이 허용된 영상만 쓰세요.</p>
       </div>
     </section>
@@ -204,6 +228,14 @@
           <span>Pexels 키 (없으면 단색 배경, pexels.com/api 에서 무료 발급)</span>
           <input type="password" data-key="pexels_key">
         </label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">인터넷 전체 이미지 검색 (선택 · 유료)</div>
+        <p class="hint" style="margin:0 0 10px">키를 넣으면 원본 찾기 때 장면마다 인터넷 전체(틱톡·인스타 등)에서 같은 장면을 자동으로 찾아요.
+          키가 없어도 장면마다 <b>구글 렌즈</b> 버튼으로 무료로 찾을 수 있어요.
+          구글 클라우드(console.cloud.google.com)에서 Cloud Vision API를 켜고 API 키를 만드세요. 한 달 1,000장까지 무료, 그 뒤 1,000장에 약 5천 원이에요.</p>
+        <label class="field"><span>구글 Cloud Vision 키</span><input type="password" data-key="vision_key"></label>
       </div>
 
       <div class="card">

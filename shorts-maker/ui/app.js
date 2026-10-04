@@ -77,6 +77,9 @@ function renderState(s) {
     }, label, el("small", {}, desc[key] || "")));
   }
 
+  $("#webHint").textContent = s.settings.vision_key
+    ? "💳 인터넷 전체 이미지 검색 켜짐 (장면마다 자동 검색)"
+    : "🆓 장면마다 구글 렌즈 버튼으로 찾을 수 있어요 (설정에서 자동 검색 켜기 가능)";
   const voice = $("#voiceSelect");
   if (!voice.options.length) {
     for (const [label, code] of Object.entries(s.voices)) voice.append(el("option", { value: code }, label));
@@ -124,31 +127,114 @@ window.onJob = (ev) => {
 };
 
 // ---------- 🔍 원본 찾기 ----------
+let findMode = "file";
+
+function findSource() {
+  return findMode === "file" ? picked.find : $("#findLink").value.trim();
+}
+
+function updateFindStart() {
+  const src = findSource();
+  const ok = findMode === "file" ? !!src : /^https?:\/\/\S+$/i.test(src);
+  const btn = $("#findStart");
+  btn.dataset.ready = ok ? "1" : "";
+  btn.disabled = !ok || running;
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-body").forEach((b) => b.classList.toggle("hidden", b.id !== "tab-" + name));
+}
+
+function searchLinks(q) {
+  const e = encodeURIComponent(q);
+  return [
+    ["유튜브", `https://www.youtube.com/results?search_query=${e}`],
+    ["틱톡", `https://www.tiktok.com/search?q=${e}`],
+    ["인스타", `https://www.instagram.com/explore/search/keyword/?q=${e}`],
+    ["구글 영상", `https://www.google.com/search?tbm=vid&q=${e}`],
+  ];
+}
+
 function showFindResult(r) {
   const a = r.analysis || {};
   $("#findResult").classList.remove("hidden");
+  $("#anaInput").textContent = r.input?.title ? "· " + r.input.title : "";
   $("#anaSummary").textContent = a.summary || "(분석 내용 없음)";
   const kv = $("#anaKv");
   kv.replaceChildren();
   const rows = [
     ["원본 종류", a.source_type], ["원본 추정", a.guess_title],
     ["인물", (a.people || []).join(", ")], ["화면 글자", (a.on_screen_text || []).join(" / ")],
-    ["쇼츠 대사", (r.speech || "").slice(0, 200)], ["쇼츠 길이", timeText(r.duration)],
+    ["영상 대사", (r.speech || "").slice(0, 200)], ["영상 길이", timeText(r.duration)],
+    ["장면 수", `${r.scenes.length}개`],
   ];
   for (const [k, v] of rows) if (v) kv.append(el("dt", {}, k), el("dd", {}, v));
   $("#anaQueries").replaceChildren(...(a.queries || []).map((q) => el("span", { class: "chip" }, "🔎 " + q)));
 
+  renderScenes(r);
+  renderCands(r.candidates);
+  renderSimilar(r);
+  $("#cntScenes").textContent = r.scenes.length;
+  $("#cntCands").textContent = r.candidates.length;
+  $("#cntSimilar").textContent = r.similar.length;
+  showTab(r.candidates.some((c) => c.score >= 60) ? "cands" : "scenes");
+}
+
+// 장면별 확인: 장면 사진 + 구글 렌즈 버튼 + (유료) 자동 검색 결과 + 유튜브에서 맞은 원본
+function renderScenes(r) {
+  const found = {};  // 장면 번호 → [원본 후보 제목, 원본 시각]
+  for (const c of r.candidates) {
+    for (const [si, t] of Object.entries(c.scenes || {})) if (!found[si]) found[si] = [c, t];
+  }
+  const grid = $("#sceneGrid");
+  grid.replaceChildren();
+  for (const s of r.scenes) {
+    const hit = found[s.index];
+    const web = s.web;
+    grid.append(el("div", { class: "scene" },
+      el("img", { src: s.image, alt: "" }),
+      el("div", { class: "scene-body" },
+        el("div", { class: "scene-time" }, `장면 ${s.index + 1} · ${timeText(s.start)} ~ ${timeText(s.end)}`),
+        hit ? el("div", { class: "scene-found", title: hit[0].title }, `🎯 원본 ${timeText(hit[1])} · ${hit[0].title}`) : null,
+        el("div", { class: "scene-actions" },
+          el("button", { class: "btn", onclick: () => lens(s.frame, "google") }, "구글 렌즈"),
+          el("button", { class: "btn", onclick: () => lens(s.frame, "bing") }, "빙"),
+          el("button", { class: "btn", title: "장면 사진 파일 보기", onclick: () => api.open_folder_of(s.frame) }, "📁"),
+        ),
+        web ? webResults(web) : null,
+      ),
+    ));
+  }
+}
+
+function webResults(web) {
+  if (web.error) return el("div", { class: "web-results" }, el("div", { class: "web-empty" }, "⚠️ " + web.error));
+  if (!web.pages.length) return el("div", { class: "web-results" }, el("div", { class: "web-empty" }, "인터넷에서 같은 장면을 못 찾았어요"));
+  return el("div", { class: "web-results" },
+    ...web.pages.slice(0, 5).map((p) =>
+      el("button", { class: "web-link", title: p.url, onclick: () => api.open_url(p.url) },
+        el("b", {}, p.platform), p.title || p.url)));
+}
+
+async function lens(path, engine) {
+  const copied = await api.image_search(path, engine);
+  toast(copied ? "장면 사진을 복사했어요. 열린 검색창에서 Ctrl+V를 누르세요."
+               : "검색창을 열었어요. 📁 버튼으로 장면 사진을 찾아 검색창에 끌어다 놓으세요.");
+}
+
+function renderCands(cands) {
   const list = $("#candList");
   list.replaceChildren();
-  $("#candCount").textContent = `${r.candidates.length}개`;
-  if (!r.candidates.length) list.append(el("div", { class: "empty" }, "후보를 찾지 못했어요."));
-  r.candidates.forEach((c, i) => list.append(candCard(c, i)));
+  if (!cands.length) list.append(el("div", { class: "empty" }, "유튜브에서 원본 후보를 찾지 못했어요. 장면별 확인에서 구글 렌즈로 찾아보세요."));
+  cands.forEach((c, i) => list.append(candCard(c, i)));
 }
 
 function candCard(c, i) {
   const level = c.score >= 60 ? "high" : c.score >= 30 ? "mid" : "";
   const label = c.score >= 60 ? "원본 확실" : c.score >= 30 ? "원본 가능성" : c.deep !== undefined ? "다른 영상" : "썸네일만 비교";
   const startUrl = c.url + (c.start !== undefined ? `&t=${c.start}s` : "");
+  const sceneNums = Object.keys(c.scenes || {}).map((n) => Number(n) + 1);
   return el("div", { class: "cand" + (i === 0 && c.score >= 60 ? " top" : "") },
     el("img", { class: "thumb", src: c.thumb, alt: "" }),
     el("div", { class: "cand-body" },
@@ -159,18 +245,66 @@ function candCard(c, i) {
       c.start !== undefined
         ? el("div", { class: "cand-pos" }, `📍 원본의 ${timeText(c.start)} ~ ${timeText(c.end)} 부분`)
         : null,
+      sceneNums.length ? el("div", { class: "cand-scenes" }, `맞은 장면: ${sceneNums.join(", ")}번`) : null,
+      c.proofs?.length
+        ? el("div", { class: "proofs" }, ...c.proofs.map((p) => el("div", { class: "proof" },
+            el("figure", {}, el("img", { src: p.mine, alt: "" }), el("figcaption", {}, `내 장면 ${p.scene + 1}`)),
+            el("figure", {}, el("img", { src: p.orig, alt: "" }), el("figcaption", {}, `원본 ${timeText(p.time)}`)))))
+        : null,
       c.note ? el("div", { class: "cand-note" }, c.note) : null,
       el("div", { class: "cand-actions" },
         el("button", { class: "btn small", onclick: () => api.open_url(startUrl) }, "▶ 유튜브에서 보기"),
-        el("button", { class: "btn small", "data-job": "1",
-          onclick: () => startJob("download", { url: c.url }, "원본 영상 받는 중...") }, "⬇ 원본 받기"),
-        el("button", { class: "btn small primary", "data-job": "1",
-          onclick: () => startJob("download", { url: c.url, then: "clips" }, "원본 영상 받는 중...") },
-          "✂️ 받아서 쇼츠 만들기"),
+        downloadButtons(c.url),
       ),
     ),
     el("div", { class: "score " + level }, el("b", {}, c.score + "%"), el("span", {}, label)),
   );
+}
+
+function downloadButtons(url, makeLabel = "✂️ 받아서 쇼츠 만들기") {
+  return [
+    el("button", { class: "btn small", "data-job": "1",
+      onclick: () => startJob("download", { url }, "영상 받는 중...") }, "⬇ 받기"),
+    el("button", { class: "btn small primary", "data-job": "1",
+      onclick: () => startJob("download", { url, then: "clips" }, "영상 받는 중...") }, makeLabel),
+  ];
+}
+
+function renderSimilar(r) {
+  const a = r.analysis || {};
+  $("#trendText").textContent = a.trend || "AI가 컨셉을 정리하지 못했어요.";
+  const qs = a.similar_queries || [];
+  const links = $("#trendLinks");
+  links.replaceChildren();
+  if (qs.length) {
+    const q = qs[0];
+    links.append(el("span", { class: "chip" }, `"${q}" 바로 검색:`));
+    for (const [name, url] of searchLinks(q)) {
+      links.append(el("span", { class: "chip link", onclick: () => api.open_url(url) }, name + " ↗"));
+    }
+    for (const other of qs.slice(1)) {
+      links.append(el("span", { class: "chip link", title: "유튜브에서 검색",
+        onclick: () => api.open_url(searchLinks(other)[0][1]) }, "🔎 " + other));
+    }
+  }
+  const grid = $("#similarGrid");
+  grid.replaceChildren();
+  if (!r.similar.length) grid.append(el("div", { class: "empty" }, "비슷한 영상을 찾지 못했어요. 위 검색 버튼으로 찾아보세요."));
+  for (const v of r.similar) {
+    grid.append(el("div", { class: "sim" },
+      el("img", { src: v.thumb, alt: "" }),
+      el("div", { class: "sim-body" },
+        el("div", { class: "sim-title", title: v.title }, v.title),
+        el("div", { class: "cand-meta" },
+          [v.channel, v.duration ? timeText(v.duration) : null, v.views ? `조회수 ${v.views.toLocaleString()}회` : null]
+            .filter(Boolean).join(" · ")),
+        el("div", { class: "scene-actions" },
+          el("button", { class: "btn small", onclick: () => api.open_url(v.url) }, "▶ 보기"),
+          ...downloadButtons(v.url, "✂️ 쇼츠로"),
+        ),
+      ),
+    ));
+  }
 }
 
 function onDownloaded(r) {
@@ -210,7 +344,8 @@ function setPicked(kind, path) {
   name.textContent = path ? baseName(path) : "선택한 영상이 없어요";
   name.title = path || "";
   name.classList.toggle("has", !!path);
-  const btn = $(kind === "find" ? "#findStart" : "#clipsStart");
+  if (kind === "find") return updateFindStart();
+  const btn = $("#clipsStart");
   btn.dataset.ready = path ? "1" : "";
   btn.disabled = !path || running;
 }
@@ -261,8 +396,17 @@ function bind() {
   findStart.dataset.needs = "file";
   findStart.addEventListener("click", () => {
     $("#findResult").classList.add("hidden");
-    startJob("find", { path: picked.find }, "원본 찾기를 시작했어요...");
+    startJob("find", { source: findSource() }, "원본 찾기를 시작했어요...");
   });
+  document.querySelectorAll(".input-tab").forEach((t) => t.addEventListener("click", () => {
+    findMode = t.dataset.input;
+    document.querySelectorAll(".input-tab").forEach((x) => x.classList.toggle("active", x === t));
+    $("#inputFile").classList.toggle("hidden", findMode !== "file");
+    $("#inputLink").classList.toggle("hidden", findMode !== "link");
+    updateFindStart();
+  }));
+  $("#findLink").addEventListener("input", updateFindStart);
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
   const clipsStart = $("#clipsStart");
   clipsStart.dataset.job = "1";

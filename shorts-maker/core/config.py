@@ -40,6 +40,7 @@ DEFAULTS = {
     "voice": "ko-KR-SunHiNeural",
     "voice_rate": "+10%",
     "pexels_key": "",
+    "vision_key": "",
     "whisper_model": "large-v3-turbo",
 }
 

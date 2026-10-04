@@ -16,7 +16,7 @@ import webview
 
 from core import clip_mode, config, llm, source_finder, topic_mode, tts, visuals
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 UI_FILE = os.path.join(config.APP_DIR, "ui", "index.html")
 LOG_FILE = os.path.join(config.APP_DIR, "app.log")
 JOB_NAMES = {"find": "원본 찾기", "download": "원본 받기", "script": "대본 만들기",
@@ -34,6 +34,18 @@ def open_in_system(path):
         os.startfile(path)
     else:
         subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+
+
+def copy_image(path):
+    """사진을 윈도우 클립보드에 복사한다 (붙여넣기 Ctrl+V 용)."""
+    if sys.platform != "win32" or not os.path.exists(path):
+        return False
+    safe = path.replace("'", "''")
+    script = ("Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "
+              f"[System.Windows.Forms.Clipboard]::SetImage([System.Drawing.Image]::FromFile('{safe}'))")
+    proc = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", script],
+                          capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    return proc.returncode == 0
 
 
 class Api:
@@ -116,8 +128,15 @@ class Api:
         return self.open_path(config.output_dir(self._settings))
 
     def open_url(self, url):
-        if url.startswith("https://"):
+        if url.startswith(("https://", "http://")):
             webbrowser.open(url)
+
+    def image_search(self, path, engine):
+        """장면 사진을 복사해 두고 이미지 검색 사이트를 연다. 사이트에서 Ctrl+V만 누르면 된다."""
+        sites = {"google": "https://www.google.com/imghp", "bing": "https://www.bing.com/images"}
+        copied = copy_image(path)
+        webbrowser.open(sites.get(engine, sites["google"]))
+        return copied
 
     # ---------- 오래 걸리는 작업 ----------
     def start_job(self, kind, params):
@@ -154,7 +173,7 @@ class Api:
             self._busy = None
 
     def _job_find(self, p, progress):
-        return source_finder.find(p["path"], self._settings, progress)
+        return source_finder.find(p["source"], self._settings, progress)
 
     def _job_download(self, p, progress):
         return {"path": source_finder.download_original(p["url"], self._settings, progress),

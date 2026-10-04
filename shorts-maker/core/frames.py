@@ -1,6 +1,9 @@
 """영상에서 장면 뽑기와 장면끼리 얼마나 닮았는지 비교하기."""
+import base64
 import glob
 import os
+import re
+from io import BytesIO
 
 from PIL import Image, ImageStat
 
@@ -20,6 +23,48 @@ def extract(src, out_dir, count=12, width=480):
         if os.path.exists(path):
             frames.append((t, path))
     return frames
+
+
+def scenes(src, out_dir, max_segments=30, min_len=1.0, width=480):
+    """장면이 바뀌는 곳마다 영상을 나눈다.
+
+    [{"index", "start", "end", "time"(대표 장면 시각), "frame"(jpg경로)}]
+    모음 영상이면 장면마다 원본이 다를 수 있어서, 장면마다 따로 찾는 데 쓴다.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    total = video.duration(src)
+    proc = video.run(["-i", src, "-vf", "scale=320:-2,select='gt(scene,0.32)',showinfo",
+                      "-an", "-f", "null", "-"])
+    cuts = [float(t) for t in re.findall(r"pts_time:([\d.]+)", proc.stderr)]
+    bounds = [0.0] + [t for t in cuts if 0 < t < total] + [total]
+    segs = []
+    for a, b in zip(bounds, bounds[1:]):
+        if segs and b - a < min_len:  # 너무 짧은 조각은 앞 장면에 붙인다
+            segs[-1][1] = b
+        else:
+            segs.append([a, b])
+    if len(segs) > max_segments:  # 롱폼처럼 장면이 많으면 긴 장면 위주로
+        segs = sorted(sorted(segs, key=lambda s: s[1] - s[0], reverse=True)[:max_segments])
+    result = []
+    for i, (a, b) in enumerate(segs):
+        t = (a + b) / 2
+        path = os.path.join(out_dir, f"scene_{i:02d}.jpg")
+        video.run(["-ss", f"{t:.2f}", "-i", src, "-frames:v", "1",
+                   "-vf", f"scale={width}:-2", "-q:v", "3", path])
+        if os.path.exists(path):
+            result.append({"index": len(result), "start": round(a, 2), "end": round(b, 2),
+                           "time": t, "frame": path})
+    return result
+
+
+def data_uri(path, width=320):
+    """화면에 바로 보여줄 수 있게 작은 jpg 글자로 바꾼다."""
+    img = Image.open(path).convert("RGB")
+    if img.width > width:
+        img = img.resize((width, round(img.height * width / img.width)))
+    buf = BytesIO()
+    img.save(buf, "JPEG", quality=80)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def sample(src, out_dir, every=2.0, width=240):
