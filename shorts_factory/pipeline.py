@@ -49,6 +49,37 @@ def probe(path):
 
 # ---------- 1. 소스 확보 ----------
 
+_BROWSERS = ["firefox", "edge", "chrome", "whale", "brave", "opera"]
+
+
+def _is_age(msg):
+    m = msg.lower()
+    return "confirm your age" in m or "age-restricted" in m or "age restricted" in m
+
+
+def _needs_login(msg):
+    return "Sign in to confirm" in msg or "not a bot" in msg or _is_age(msg)
+
+
+def _friendly(err):
+    """yt-dlp 오류를 쉬운 한국어로."""
+    msg = str(err)
+    if "Sign in to confirm" in msg or "not a bot" in msg:
+        return ("유튜브가 로봇인지 확인하려고 막았어요. 크롬·엣지·파이어폭스 중 하나에서 유튜브에 로그인한 뒤 "
+                "다시 해 보세요. (파이어폭스가 가장 잘 됩니다)")
+    if "Private video" in msg:
+        return "비공개 영상이라 받을 수 없어요."
+    if _is_age(msg):
+        return "연령 제한 영상이에요. 브라우저에서 유튜브에 로그인한 뒤 다시 해 보세요."
+    if "Unsupported URL" in msg:
+        return "지원하지 않는 주소예요. 영상 페이지 주소를 그대로 복사해서 넣어 주세요."
+    if "HTTP Error 404" in msg or "not available" in msg.lower():
+        return "영상을 찾을 수 없어요. 삭제됐거나 주소가 잘못됐을 수 있어요."
+    if "getaddrinfo" in msg or "connect" in msg.lower():
+        return "인터넷 연결을 확인해 주세요."
+    return "영상을 받지 못했어요: " + msg.splitlines()[0][:200]
+
+
 def download(url, job_dir, log):
     import yt_dlp
 
@@ -66,8 +97,29 @@ def download(url, job_dir, log):
         "noplaylist": True,
         "ignoreerrors": False,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+
+    def attempt(extra):
+        with yt_dlp.YoutubeDL({**opts, **extra}) as ydl:
+            return ydl.extract_info(url, download=True)
+
+    try:
+        info = attempt({})
+    except yt_dlp.utils.DownloadError as first:
+        msg = str(first)
+        if not _needs_login(msg):
+            raise JobError(_friendly(first))
+        # 브라우저에 로그인된 유튜브 정보를 빌려서 다시 시도
+        info = None
+        for browser in _BROWSERS:
+            try:
+                log(f"유튜브 확인 요청 → {browser} 브라우저 로그인 정보로 다시 시도…")
+                info = attempt({"cookiesfrombrowser": (browser,)})
+                break
+            except Exception:
+                continue
+        if info is None:
+            raise JobError(_friendly(first))
+
     video = next((p for p in glob.glob(os.path.join(job_dir, "source.*"))
                   if p.rsplit(".", 1)[-1] in ("mp4", "mkv", "webm", "mov")), None)
     if not video:
