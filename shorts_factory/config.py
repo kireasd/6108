@@ -5,13 +5,20 @@ import sys
 import threading
 
 if getattr(sys, "frozen", False):
+    # exe로 묶였을 때: 데이터는 exe 옆, 내장 파일(화면·ffmpeg·폰트)은 임시 압축 해제 폴더
     BASE_DIR = os.path.dirname(sys.executable)
+    RES_DIR = getattr(sys, "_MEIPASS", BASE_DIR)
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    RES_DIR = BASE_DIR
 
+BIN_DIR = os.path.join(RES_DIR, "bin")          # 내장 ffmpeg / ffprobe / deno
 SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
-WORK_DIR = os.path.join(BASE_DIR, "work")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+WORK_DIR = os.path.join(BASE_DIR, "작업중_임시파일")
+OUTPUT_DIR = os.path.join(BASE_DIR, "완성된 쇼츠")
+
+if os.path.isdir(BIN_DIR):
+    os.environ["PATH"] = BIN_DIR + os.pathsep + os.environ.get("PATH", "")
 
 DEFAULT_CHANNEL = {
     "id": "default",
@@ -37,6 +44,7 @@ DEFAULT_SETTINGS = {
 }
 
 FONT_CANDIDATES = [
+    os.path.join(RES_DIR, "fonts", "NanumGothic-ExtraBold.ttf"),
     r"C:\Windows\Fonts\malgunbd.ttf",
     r"C:\Windows\Fonts\malgun.ttf",
     "/System/Library/Fonts/AppleSDGothicNeo.ttc",

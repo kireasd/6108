@@ -1,0 +1,86 @@
+name: 딸깍 쇼츠 공장 - 윈도우 exe 만들기
+
+on:
+  push:
+    paths:
+      - "shorts_factory/**"
+      - ".github/workflows/build-shorts-factory.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: shorts_factory
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 파이썬 패키지 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt "yt-dlp[default]" pyinstaller pytest
+
+      - name: FFmpeg / deno / 한글 폰트 내려받기
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          New-Item -ItemType Directory -Force bin, fonts, dl | Out-Null
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip -OutFile dl/ffmpeg.zip
+          Expand-Archive dl/ffmpeg.zip -DestinationPath dl/ffmpeg
+          $ff = Get-ChildItem dl/ffmpeg -Directory | Select-Object -First 1
+          Copy-Item "$($ff.FullName)/bin/ffmpeg.exe", "$($ff.FullName)/bin/ffprobe.exe" bin/
+          Copy-Item "$($ff.FullName)/bin/*.dll" bin/
+          Invoke-WebRequest https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip -OutFile dl/deno.zip
+          Expand-Archive dl/deno.zip -DestinationPath bin
+          Invoke-WebRequest https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-ExtraBold.ttf -OutFile fonts/NanumGothic-ExtraBold.ttf
+          Get-ChildItem bin, fonts
+
+      - name: 테스트
+        run: |
+          $env:PATH = "$PWD\bin;$env:PATH"
+          python -m pytest -q tests
+
+      - name: exe 만들기
+        run: |
+          pyinstaller --noconfirm --onefile --console --name DdalkkakShorts `
+            --splash assets/splash.png `
+            --add-data "templates;templates" --add-data "static;static" `
+            --add-data "fonts;fonts" --add-binary "bin/*;bin" `
+            --hidden-import ai --collect-all yt_dlp_ejs `
+            app.py
+          Get-Item dist/DdalkkakShorts.exe | Select-Object Name, Length
+
+      - name: exe 자체 점검 (테스트 영상 변환)
+        run: |
+          New-Item -ItemType Directory -Force check | Out-Null
+          Copy-Item dist/DdalkkakShorts.exe check/
+          cd check
+          ./DdalkkakShorts.exe --selftest
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 유튜브 다운로드 점검 (참고용)
+        continue-on-error: true
+        run: |
+          cd check
+          ./DdalkkakShorts.exe --selftest "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: 다운로드 링크에 올리기
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: shorts-v${{ github.run_number }}
+          name: 딸깍 쇼츠 공장 v${{ github.run_number }}
+          make_latest: "true"
+          body: |
+            ## 다운로드
+            아래 **DdalkkakShorts.exe** 를 눌러 받은 뒤 더블클릭하면 실행됩니다.
+            (처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** 을 누르세요.)
+          files: shorts_factory/dist/DdalkkakShorts.exe

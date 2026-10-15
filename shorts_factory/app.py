@@ -1,6 +1,8 @@
 """딸깍 쇼츠 공장 - 로컬 웹 앱 (http://127.0.0.1:5077)."""
 import os
 import queue
+import socket
+import sys
 import threading
 import time
 import traceback
@@ -13,7 +15,8 @@ from werkzeug.utils import secure_filename
 import config
 from pipeline import run_job
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(config.RES_DIR, "templates"),
+            static_folder=os.path.join(config.RES_DIR, "static"))
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024
 
 jobs = {}            # id -> job dict (상태 표시용)
@@ -42,6 +45,11 @@ def worker():
             channel = config.get_channel(settings, job["channel_id"])
             job["result"] = run_job(job, settings, channel, log)
             job["status"] = "done"
+            if job.get("file") and os.path.dirname(job["file"]).endswith("uploads"):
+                try:
+                    os.remove(job["file"])
+                except OSError:
+                    pass
             log("완료!")
         except Exception as e:  # 작업 하나가 실패해도 큐는 계속 돈다
             job["status"] = "error"
@@ -173,13 +181,68 @@ def open_output():
     return jsonify({"path": config.OUTPUT_DIR})
 
 
+def _port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def selftest(url=None):
+    """설치 확인용: 테스트 영상을 만들어 쇼츠로 변환해 본다 (빌드 검사에서 사용)."""
+    import shutil
+    import subprocess
+    import pipeline
+
+    print("ffmpeg:", shutil.which("ffmpeg"), "| ffprobe:", shutil.which("ffprobe"), "| deno:", shutil.which("deno"))
+    settings = config.load_settings()
+    print("font:", config.find_font(settings))
+    os.makedirs(config.WORK_DIR, exist_ok=True)
+    src = os.path.join(config.WORK_DIR, "selftest_src.mp4")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=1280x720:d=3:r=30",
+                    "-f", "lavfi", "-i", "sine=f=440:d=3", "-shortest", src], check=True)
+    channel = {**config.DEFAULT_CHANNEL, "name": "selftest"}
+    job = {"id": "selftest", "file": src, "title_override": "자체 점검/테스트 영상", "highlight": "테스트"}
+    if url:
+        job = {"id": "selftest_url", "url": url, "title_override": "다운로드/테스트"}
+    res = pipeline.run_job(job, settings, channel, log=print)
+    meta = pipeline.probe(res["output"])
+    print("OK", res["output"], meta)
+    assert (meta["w"], meta["h"]) == (1080, 1920)
+
+
 def main():
+    for stream in (sys.stdout, sys.stderr):  # 한글 출력이 깨지거나 오류 나지 않게
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    try:  # exe 실행 시 뜨는 로딩 화면 닫기
+        import pyi_splash
+        pyi_splash.close()
+    except Exception:
+        pass
+    if "--selftest" in sys.argv:
+        i = sys.argv.index("--selftest")
+        selftest(sys.argv[i + 1] if len(sys.argv) > i + 1 else None)
+        return
+    port = int(os.environ.get("PORT", 5077))
+    url = f"http://127.0.0.1:{port}"
+    if _port_in_use(port):
+        # 이미 켜져 있으면 화면만 다시 연다
+        webbrowser.open(url)
+        return
     os.makedirs(config.WORK_DIR, exist_ok=True)
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
     threading.Thread(target=worker, daemon=True).start()
-    port = int(os.environ.get("PORT", 5077))
+    print("=" * 56)
+    print("  딸깍 쇼츠 공장이 실행되었습니다!")
+    print(f"  인터넷 창이 자동으로 열립니다. 안 열리면 주소창에 {url}")
+    print("  완성된 영상 폴더:", config.OUTPUT_DIR)
+    print("  ※ 이 검은 창을 닫으면 프로그램이 꺼집니다. 쓰는 동안 그대로 두세요.")
+    print("=" * 56)
     if not os.environ.get("NO_BROWSER"):
-        threading.Timer(1.0, lambda: webbrowser.open(f"http://127.0.0.1:{port}")).start()
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+    import logging
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     app.run(host="127.0.0.1", port=port, debug=False, threaded=True)
 
 

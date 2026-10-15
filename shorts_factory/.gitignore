@@ -6,3 +6,12 @@ __pycache__/
 
 __pycache__/
 .pytest_cache/
+bin/
+fonts/
+dl/
+dist/
+build/
+check/
+*.spec
+완성된 쇼츠/
+작업중_임시파일/

@@ -19,8 +19,13 @@ class JobError(Exception):
     pass
 
 
+# Windows에서 ffmpeg 실행 시 검은 창이 뜨지 않게
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def _run(cmd, cwd=None):
-    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+    p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="ignore",
+                       creationflags=_NO_WINDOW)
     if p.returncode != 0:
         raise JobError(f"{os.path.basename(cmd[0])} 실패:\n{p.stderr[-1500:]}")
     return p.stdout

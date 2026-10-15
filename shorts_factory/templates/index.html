@@ -47,7 +47,7 @@
       <div class="card">
         <div class="row">
           <h2>작업 목록</h2>
-          <button id="openOut" class="ghost">출력 폴더</button>
+          <button id="openOut" class="ghost">📁 완성된 영상 폴더 열기</button>
         </div>
         <div id="jobs" class="jobs"><p class="empty">아직 작업이 없습니다.</p></div>
       </div>
@@ -70,8 +70,18 @@
   <!-- 설정 -->
   <section id="tab-settings" class="panel">
     <div class="card narrow">
-      <h2>AI (Claude) 연결</h2>
+      <h2>AI (Claude) 연결 — 선택 사항</h2>
       <p class="hint" id="keyState"></p>
+      <div class="guide">
+        <b>API 키란?</b> AI가 제목을 짓고 자막을 한국어로 번역하게 해 주는 "열쇠"예요.
+        없어도 프로그램은 돌아가요 (제목은 직접 입력, 자막은 원본 그대로).
+        <ol>
+          <li><a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> 에 접속해 가입 (구글 계정으로 가능)</li>
+          <li>왼쪽 메뉴 <b>Billing</b>에서 카드 등록 후 소액 충전 (영상 1개에 몇십 원 수준)</li>
+          <li>왼쪽 메뉴 <b>API Keys</b> → <b>Create Key</b> → 나온 글자(sk-ant-…)를 복사</li>
+          <li>아래 칸에 붙여넣고 <b>저장</b></li>
+        </ol>
+      </div>
       <label>Anthropic API 키</label>
       <input id="apiKey" type="password" placeholder="sk-ant-... (저장된 키는 표시되지 않습니다)">
       <label>모델</label>
