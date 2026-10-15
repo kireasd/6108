@@ -1,0 +1,7 @@
+flask>=3.0
+yt-dlp>=2025.1.1
+anthropic>=1.0
+pillow>=10.0
+pydantic>=2.0
+# 선택: 원본에 자막이 없을 때 음성 인식 (설치하면 자동 사용)
+# faster-whisper>=1.0

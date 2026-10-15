@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>딸깍 쇼츠 공장</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">딸깍 <b>쇼츠 공장</b></div>
+  <nav>
+    <button class="tab active" data-tab="make">만들기</button>
+    <button class="tab" data-tab="channels">채널 프리셋</button>
+    <button class="tab" data-tab="settings">설정</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 만들기 -->
+  <section id="tab-make" class="panel active">
+    <div class="grid">
+      <div class="card">
+        <h2>1. 영상 넣기</h2>
+        <label>영상 URL (여러 개는 줄바꿈)</label>
+        <textarea id="urls" rows="5" placeholder="https://www.youtube.com/shorts/...&#10;https://www.tiktok.com/@.../video/..."></textarea>
+        <label>또는 영상 파일</label>
+        <input type="file" id="files" accept="video/*" multiple>
+
+        <h2>2. 채널 선택</h2>
+        <select id="channelSelect"></select>
+
+        <details>
+          <summary>직접 입력 (선택)</summary>
+          <label>제목 직접 입력 — 줄바꿈은 <code>/</code></label>
+          <input id="title" placeholder="해외에서 난리난/충격 실험 결과">
+          <label>강조 단어</label>
+          <input id="highlight" placeholder="충격">
+          <label>시작 지점(초) — 앞부분 자르기</label>
+          <input id="start" type="number" min="0" step="0.5" value="0">
+        </details>
+
+        <button id="goBtn" class="big">딸깍 ▶ 쇼츠 만들기</button>
+        <p id="hint" class="hint"></p>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <h2>작업 목록</h2>
+          <button id="openOut" class="ghost">출력 폴더</button>
+        </div>
+        <div id="jobs" class="jobs"><p class="empty">아직 작업이 없습니다.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 채널 프리셋 -->
+  <section id="tab-channels" class="panel">
+    <div class="card">
+      <div class="row">
+        <h2>채널 프리셋</h2>
+        <button id="addChannel" class="ghost">+ 채널 추가</button>
+      </div>
+      <p class="hint">채널마다 레이아웃·색·말투·변형 옵션을 저장해 두면, 영상 넣고 채널만 고르면 끝납니다.</p>
+      <div id="channelList"></div>
+      <button id="saveChannels" class="big">저장</button>
+    </div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-settings" class="panel">
+    <div class="card narrow">
+      <h2>AI (Claude) 연결</h2>
+      <p class="hint" id="keyState"></p>
+      <label>Anthropic API 키</label>
+      <input id="apiKey" type="password" placeholder="sk-ant-... (저장된 키는 표시되지 않습니다)">
+      <label>모델</label>
+      <input id="model">
+      <h2>폰트</h2>
+      <label>한글 폰트 파일 경로 (.ttf / .otf) — 비우면 자동 탐색</label>
+      <input id="fontFile" placeholder="C:\Windows\Fonts\malgunbd.ttf">
+      <p class="hint" id="fontState"></p>
+      <button id="saveSettings" class="big">저장</button>
+      <button id="clearKey" class="ghost">API 키 삭제</button>
+    </div>
+  </section>
+</main>
+
+<template id="channelTpl">
+  <div class="channel">
+    <div class="ch-grid">
+      <div><label>채널 이름</label><input data-k="name"></div>
+      <div><label>레이아웃</label>
+        <select data-k="layout">
+          <option value="black">검정 배경</option>
+          <option value="white">흰 배경</option>
+          <option value="blur">블러 배경</option>
+        </select></div>
+      <div><label>워터마크(채널명)</label><input data-k="watermark" placeholder="@mychannel"></div>
+      <div><label>제목 색</label><input type="color" data-k="title_color"></div>
+      <div><label>강조 색</label><input type="color" data-k="highlight_color"></div>
+      <div><label>자막 색</label><input type="color" data-k="subtitle_color"></div>
+      <div><label>배속</label><input type="number" step="0.01" min="0.5" max="2" data-k="speed"></div>
+      <div><label>확대(크롭)</label><input type="number" step="0.01" min="1" max="1.5" data-k="zoom"></div>
+      <div><label>최대 길이(초, 0=무제한)</label><input type="number" min="0" data-k="max_duration"></div>
+      <div class="check"><label><input type="checkbox" data-k="mirror"> 좌우 반전</label></div>
+      <div class="check"><label><input type="checkbox" data-k="translate"> 자막 한국어 번역</label></div>
+      <div class="wide"><label>AI 말투 / 스타일</label><input data-k="tone"></div>
+    </div>
+    <button class="ghost danger del">삭제</button>
+  </div>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

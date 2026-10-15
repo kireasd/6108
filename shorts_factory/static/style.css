@@ -1,0 +1,58 @@
+:root {
+  --bg: #08080a; --card: #141418; --line: #2a2a31; --text: #f2f2f2; --sub: #9a9aa3;
+  --gold: #f5c518; --gold2: #ffdd57; --red: #ff5a5a; --green: #2ecc71;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  padding: 16px 24px; border-bottom: 1px solid var(--line); background: #0d0d10; position: sticky; top: 0; z-index: 2; }
+.brand { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+.brand b { color: var(--gold); }
+nav { display: flex; gap: 6px; }
+.tab { background: none; border: 1px solid var(--line); color: var(--sub); padding: 8px 16px; border-radius: 999px; cursor: pointer; font: inherit; }
+.tab.active { border-color: var(--gold); color: var(--gold); }
+main { padding: 24px; max-width: 1280px; margin: 0 auto; }
+.panel { display: none; } .panel.active { display: block; }
+.grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } main { padding: 16px; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.card.narrow { max-width: 560px; }
+h2 { font-size: 16px; margin: 4px 0 12px; color: var(--gold2); }
+.card h2:not(:first-child) { margin-top: 22px; }
+label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 6px; }
+input, textarea, select { width: 100%; background: #0b0b0e; color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; font: inherit; }
+input[type=color] { padding: 2px; height: 40px; }
+input[type=checkbox] { width: auto; margin-right: 6px; }
+textarea { resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); }
+details { margin-top: 14px; } summary { cursor: pointer; color: var(--sub); font-size: 14px; }
+code { color: var(--gold); }
+button { font: inherit; cursor: pointer; }
+.big { width: 100%; margin-top: 20px; padding: 14px; border: 0; border-radius: 12px; font-weight: 800; font-size: 17px;
+  color: #111; background: linear-gradient(180deg, var(--gold2), var(--gold)); box-shadow: 0 0 24px rgba(245,197,24,.25); }
+.big:disabled { opacity: .5; cursor: wait; }
+.ghost { background: none; border: 1px solid var(--line); color: var(--text); padding: 7px 14px; border-radius: 10px; }
+.ghost:hover { border-color: var(--gold); }
+.danger { color: var(--red); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hint { color: var(--sub); font-size: 13px; line-height: 1.5; }
+.empty { color: var(--sub); text-align: center; padding: 40px 0; }
+.jobs { display: flex; flex-direction: column; gap: 12px; }
+.job { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+.job .src { font-weight: 700; word-break: break-all; }
+.job .meta { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.badge { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; height: fit-content; }
+.badge.running { color: var(--gold); border-color: var(--gold); }
+.badge.done { color: var(--green); border-color: var(--green); }
+.badge.error { color: var(--red); border-color: var(--red); }
+.job pre { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--sub); white-space: pre-wrap; max-height: 120px; overflow: auto;
+  background: #0b0b0e; padding: 10px; border-radius: 8px; }
+.job video { grid-column: 1 / -1; width: 100%; max-width: 240px; aspect-ratio: 9/16; background: #000; border-radius: 10px; }
+.job .actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.channel { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 14px; }
+.ch-grid .wide { grid-column: 1 / -1; }
+.ch-grid .check label { margin-top: 38px; color: var(--text); }
+.channel .del { margin-top: 12px; }

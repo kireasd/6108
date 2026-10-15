@@ -1,0 +1,8 @@
+settings.json
+work/
+output/
+.venv/
+__pycache__/
+
+__pycache__/
+.pytest_cache/
