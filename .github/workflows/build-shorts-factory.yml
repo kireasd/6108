@@ -73,6 +73,15 @@ jobs:
           ./DdalkkakShorts.exe --selftest "https://www.youtube.com/watch?v=jNQXAC9IVRw"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: 시작 도우미(bat) 점검 - 실제로 내려받기
+        shell: cmd
+        env:
+          SHORTS_NO_LAUNCH: "1"
+        run: |
+          call launcher\DdalkkakShorts_start.bat
+          if errorlevel 1 exit /b 1
+          powershell -NoProfile -Command "$d=[Environment]::GetFolderPath('Desktop'); Get-ChildItem \"$d\DdalkkakShorts\"; Get-Content \"$d\DdalkkakShorts\version.txt\"; if (-not (Test-Path \"$d\DdalkkakShorts\DdalkkakShorts.exe\")) { exit 1 }"
+
       - name: 다운로드 링크에 올리기
         uses: softprops/action-gh-release@v2
         with:
@@ -83,4 +92,6 @@ jobs:
             ## 다운로드
             아래 **DdalkkakShorts.exe** 를 눌러 받은 뒤 더블클릭하면 실행됩니다.
             (처음 실행 시 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행** 을 누르세요.)
-          files: shorts_factory/dist/DdalkkakShorts.exe
+          files: |
+            shorts_factory/dist/DdalkkakShorts.exe
+            shorts_factory/launcher/DdalkkakShorts_start.bat
